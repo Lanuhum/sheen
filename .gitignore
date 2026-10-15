@@ -1,0 +1,8 @@
+build/
+test_output.png
+tools/bench
+*.o
+*.ptx
+*.cubin
+*.fatbin
+tmpxft_*

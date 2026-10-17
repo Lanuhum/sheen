@@ -68,13 +68,13 @@ struct alignas(16) Material {
 };
 
 // ---------------------------------------------------------
-// 6. Object
+// 6. Object (сферы, type == 0)
 // ---------------------------------------------------------
 struct alignas(16) Object {
-    int    type;        // 0 = сфера, 1 = плоскость
+    int    type;
     int    material_id;
-    float3 param1;      // Сфера: центр. Плоскость: нормаль
-    float  param2;      // Сфера: радиус. Плоскость: расстояние (d)
+    float3 param1;
+    float  param2;
     float  _pad0, _pad1, _pad2;
 };
 
@@ -89,7 +89,35 @@ struct alignas(16) Light {
 };
 
 // ---------------------------------------------------------
-// 8. SceneData
+// 8. Plane (отдельно от BVH)
+// ---------------------------------------------------------
+struct alignas(16) Plane {
+    float3 normal;
+    float  d;
+    int    material_id;
+    int    _pad0, _pad1, _pad2;
+};
+
+// ---------------------------------------------------------
+// 9. SweepPoint (одна контрольная точка пряди, 16 байт)
+// ---------------------------------------------------------
+struct alignas(16) SweepPoint {
+    float3 position;  // 12 bytes
+    float  radius;    // 4 bytes
+};
+
+// ---------------------------------------------------------
+// 10. SweepStrand (описание одной пряди, 32 байта)
+// ---------------------------------------------------------
+struct alignas(16) SweepStrand {
+    int point_offset;   // индекс начала в массиве sweep_points[]
+    int point_count;    // количество точек в этой пряди
+    int material_id;
+    int _pad0;
+};
+
+// ---------------------------------------------------------
+// 11. SceneData
 // ---------------------------------------------------------
 struct SceneData {
     int num_objects;
@@ -98,7 +126,7 @@ struct SceneData {
 };
 
 // ---------------------------------------------------------
-// Вспомогательные функции (make_float3 УДАЛЁН, используем встроенный CUDA или {})
+// Вспомогательные функции
 // ---------------------------------------------------------
 GPU_HOST_DEVICE inline float dot(float3 a, float3 b) {
     return a.x*b.x + a.y*b.y + a.z*b.z;
@@ -109,14 +137,14 @@ GPU_HOST_DEVICE inline float3 normalize(float3 v) {
     return {v.x * invLen, v.y * invLen, v.z * invLen};
 }
 
-// Операторы для float3
 GPU_HOST_DEVICE inline float3 operator+(float3 a, float3 b) { return {a.x+b.x, a.y+b.y, a.z+b.z}; }
 GPU_HOST_DEVICE inline float3 operator-(float3 a, float3 b) { return {a.x-b.x, a.y-b.y, a.z-b.z}; }
 GPU_HOST_DEVICE inline float3 operator-(float3 a) { return {-a.x, -a.y, -a.z}; }
 GPU_HOST_DEVICE inline float3 operator*(float3 a, float b) { return {a.x*b, a.y*b, a.z*b}; }
 GPU_HOST_DEVICE inline float3 operator*(float b, float3 a) { return {a.x*b, a.y*b, a.z*b}; }
-GPU_HOST_DEVICE inline float3 operator*(float3 a, float3 b) { return {a.x*b.x, a.y*b.y, a.z*b.z}; } // ДОБАВЛЕНО
+GPU_HOST_DEVICE inline float3 operator*(float3 a, float3 b) { return {a.x*b.x, a.y*b.y, a.z*b.z}; }
 GPU_HOST_DEVICE inline float3 operator/(float3 a, float b) { return {a.x/b, a.y/b, a.z/b}; }
+GPU_HOST_DEVICE inline float3 operator/(float3 a, float3 b) { return {a.x/b.x, a.y/b.y, a.z/b.z}; }
 GPU_HOST_DEVICE inline float3& operator+=(float3& a, float3 b) { a.x+=b.x; a.y+=b.y; a.z+=b.z; return a; }
 GPU_HOST_DEVICE inline float3& operator-=(float3& a, float3 b) { a.x-=b.x; a.y-=b.y; a.z-=b.z; return a; }
 GPU_HOST_DEVICE inline float3& operator*=(float3& a, float b) { a.x*=b; a.y*=b; a.z*=b; return a; }

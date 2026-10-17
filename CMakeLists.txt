@@ -40,3 +40,8 @@ target_include_directories(sphere_test PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb")
 target_link_libraries(sphere_test PRIVATE "${SHEEN_CUDART}")
+
+add_executable(bench tools/bench.cu)
+set_source_files_properties(tools/bench.cu PROPERTIES LANGUAGE CUDA)
+target_include_directories(bench PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(bench PRIVATE "${SHEEN_CUDART}")

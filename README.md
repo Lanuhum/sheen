@@ -22,20 +22,26 @@ The plan is POV-Ray-like scene mathematics with the visual philosophy of old Ble
 | Hard shadows (shadow rays, offset origin) | done |
 | Materials: ambient + diffuse + Blinn-Phong specular | done |
 | Flat BVH: 32-byte nodes, CPU build, GPU traversal | done |
+| Planes kept out of the tree, checked only after it | done |
+| 4x AA supersampling, on by default | done |
 | `sphere_sweep` as cone sections, torus arcs for hair | planned |
 | Cheap caustics, volumetrics | planned |
 | Temporal accumulation | planned |
 
 ## Performance
 
-Measured on a GTX 1080 Ti (`sm_61`), 800x600, 1000 spheres plus a floor plane, 5 runs per mode:
+Measured on a GTX 1080 Ti (`sm_61`), 800x600, 1000 spheres plus one plane, steady state. The first run after the GPU has been idle comes out 20-30% slower because the clocks have to ramp, so the figures below are medians of five runs of `tools/bench.cu`, which itself averages five frames per mode:
 
-| Traversal | ms per frame |
-| --- | --- |
-| Linear scan of every object, twice per pixel | 9.6 – 11.9 |
-| Flat BVH | 0.58 – 0.81 |
+| Traversal | ms per frame, no AA | ms per frame, 4x AA |
+| --- | --- | --- |
+| Linear scan of every object | 10.4 | 55.7 |
+| Flat BVH + separate plane check | 0.40 | 1.95 |
 
-That is a 14–17x speedup. Both modes produce a pixel-identical image except for a 7-row band at the horizon, where the floor's finite bounding box clips a plane that is otherwise infinite. That is a known limitation of putting infinite geometry inside a finite tree, not a traversal bug.
+That is a **26x** speedup, with and without supersampling. Both traversals produce a **pixel-identical image — 0 differing pixels out of 480,000** — at both quality settings, and the benchmark checks that itself rather than leaving it to the eye.
+
+4x AA is on by default in the render kernel and costs roughly 5x per frame. To measure without it, set `AA_SAMPLES` to 1 in `render_kernel.cu`; the benchmark prints both figures side by side.
+
+A note on how the plane got here, because it is the step that produced this table: the infinite floor used to live inside the BVH, where its finite bounding box cut a seven-row sky band out of the horizon, and the O(N) scan needed to find it cost more than the tree saved — the speedup had fallen to 2.3x. Since the plane moved into its own array and is checked only after the tree misses, the horizon sits exactly on the geometric line and the speedup came back to 26x.
 
 ## Building
 
@@ -58,7 +64,7 @@ Target architecture defaults to `sm_61`; override with `-DSHEEN_ARCH=...`.
 
 ## Benchmark
 
-`tools/bench.cu` renders the same frame twice in one process — once through the BVH, once with a linear scan — and compares the two images pixel by pixel.
+`tools/bench.cu` renders the same frame four times in one process — linear scan and BVH, each with and without 4x AA — prints the timings side by side and compares all the images pixel by pixel.
 
 ```
 cd tools
@@ -76,6 +82,7 @@ src/           compiler smoke tests
 tools/         the BVH benchmark
 shots/         rendered frames
 shim/          header shims, used only by the nvcc fallback
+third_party/   vendored stb_image_write.h (v1.16, public domain) — writes the PNGs
 incoming/      every code drop, in order, including those that failed to build
 ```
 

@@ -4,8 +4,16 @@
 
 static_assert(sizeof(Transform) == 48, "Transform must be 48 bytes");
 static_assert(sizeof(Ray) == 32, "Ray must be 32 bytes");
-static_assert(sizeof(HitRecord) == 48, "HitRecord must be 48 bytes");
+static_assert(sizeof(HitRecord) == 80, "HitRecord must be 80 bytes");
 static_assert(sizeof(CameraData) == 64, "CameraData must be 64 bytes");
+static_assert(sizeof(Material) == 112, "Material must be 112 bytes");
+static_assert(offsetof(Material, emission_color) == 72, "Material emission_color offset");
+static_assert(offsetof(Material, emission) == 84, "Material emission offset");
+static_assert(offsetof(Material, mask_id) == 88, "Material mask_id offset");
+static_assert(offsetof(Material, normal_id) == 92, "Material normal_id offset");
+static_assert(offsetof(Material, normal_strength) == 96, "Material normal_strength offset");
+static_assert(sizeof(HeightField) == 64, "HeightField must be 64 bytes");
+static_assert(alignof(HeightField) == 16, "HeightField must be 16-byte aligned");
 
 static_assert(alignof(Transform) == 16, "Transform must be 16-byte aligned");
 static_assert(alignof(Ray) == 16, "Ray must be 16-byte aligned");
@@ -37,8 +45,8 @@ int main()
     SHOW_OFF(HitRecord, hit);
     SHOW_OFF(HitRecord, point);
     SHOW_OFF(HitRecord, normal);
+    SHOW_OFF(HitRecord, tangent);
     SHOW_OFF(HitRecord, _pad0);
-    SHOW_OFF(HitRecord, _pad1);
     SHOW_OFF(CameraData, position);
     SHOW_OFF(CameraData, right);
     SHOW_OFF(CameraData, up);
@@ -50,7 +58,7 @@ int main()
 
     printf("=== padding ===\n");
     printf("HitRecord tail           = %zu\n",
-           sizeof(HitRecord) - (offsetof(HitRecord, _pad1) + sizeof(float)));
+           sizeof(HitRecord) - (offsetof(HitRecord, _pad0) + sizeof(float)));
     printf("Ray tail                 = %zu\n",
            sizeof(Ray) - (offsetof(Ray, t_max) + sizeof(float)));
     printf("Transform tail           = %zu\n",

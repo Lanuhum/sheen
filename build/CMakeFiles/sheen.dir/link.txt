@@ -1,0 +1,1 @@
+/usr/bin/c++ -fPIC -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/sheen.dir/link.d -shared  -o sheen.so CMakeFiles/sheen.dir/api/sheen_py_module.cpp.o  -Wl,-rpath,"\$ORIGIN:/home/arch/programming/sheen_blender_4.5_gigachat/build:" libsheen_c_api.so /usr/lib64/libpython3.13.so

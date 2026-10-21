@@ -1,0 +1,19 @@
+# Sheen: гранит с золотой жилой и прожилком слюды (IOR 1.6)
+# Одна карта свойств задаёт прозрачность (R), IOR-1 (G) и шероховатость (B)
+# так, что жила в цвете и жила в материале совпадают по построению.
+# Текстуры: tools/gen_granite.py → /tmp/granite_albedo.ppm, /tmp/granite_mask.ppm
+resolution 640 480 4 /tmp/granite.png
+camera 0 0 1.10   0 0 -1
+
+texture file=/tmp/granite_albedo.ppm
+texture file=/tmp/granite_mask.ppm
+
+material diffuse=0.5 0.5 0.5 spec=0.55 shin=64 amb=0.08 tex=0 mask=1
+
+# плита: uv суперэллипсоида — мировая проекция (x,y), плита ровно в один тайл
+se 0 0 0   0.50 0.36 0.08   8 0
+
+# скаляр включает канал пропускания; где маска R=0 — обычный камень
+glass 0 1.0 1.45
+
+light 0.35 -0.55 -0.75   1.0 0.97 0.92   2.2

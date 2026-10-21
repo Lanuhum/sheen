@@ -6,6 +6,7 @@
 #include "scene.h"
 #include "bvh.h"
 #include "intersect.h"
+#include "integrator/raycast.h"
 
 GPU_DEVICE inline bool intersect_all(
     const Ray& ray, const Object* objs, int n_obj,
@@ -42,8 +43,15 @@ GPU_DEVICE inline bool intersect_scene_mode(
     const Plane* planes, int n_planes, HitRecord& rec)
 {
     if (mode == 0 || mode == 3) return intersect_all(ray, objs, n_obj, planes, n_planes, rec);
-    if (intersect_bvh(ray, nodes, objs, n_obj, rec)) return true;
-    return intersect_planes(ray, planes, n_planes, rec);
+    return scene_intersect(ray, nodes, objs, n_obj,
+                           nullptr, nullptr, nullptr, 0,
+                           nullptr, nullptr, 0,
+                           nullptr, nullptr, 0,
+                           nullptr, nullptr, 0,
+                           nullptr, nullptr, nullptr, 0,
+                           nullptr, nullptr, nullptr, 0,
+                           nullptr, -1,
+                           planes, n_planes, rec);
 }
 
 template <int MODE>

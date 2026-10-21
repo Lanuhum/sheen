@@ -1,0 +1,11 @@
+# Sheen: HeightField-ландшафт (процедурная геометрия без треугольников)
+resolution 800 600 4 /tmp/hf_demo.png
+camera 0 2.2 4.5   0.15 -0.2 -1
+
+material 0.55 0.52 0.4   0.15 16 0.18   # земля/трава
+material 0.75 0.75 0.8   0.3  64 0.15  # снежные вершины (материал по высоте)
+
+# hf cx cy cz size_x size_z height freq octaves seed mat
+hf 0 0 0  6 6 2.2  1.5 5 42 0
+
+light -0.6 -0.8 -0.5  1 1 1 0.9

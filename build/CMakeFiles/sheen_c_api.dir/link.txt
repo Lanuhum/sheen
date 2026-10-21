@@ -1,0 +1,1 @@
+/usr/bin/clang++ -fPIC --no-offload-new-driver -O3 -DNDEBUG --cuda-path=/usr -Xlinker --dependency-file=CMakeFiles/sheen_c_api.dir/link.d -shared -Wl,-soname,libsheen_c_api.so -o libsheen_c_api.so CMakeFiles/sheen_c_api.dir/api/sheen_c_api.cu.o CMakeFiles/sheen_c_api.dir/render_kernel.cu.o  /usr/lib64/libcudart.so -lcudadevrt -lcudart_static -lrt -lpthread -ldl  -L"/usr/lib64"

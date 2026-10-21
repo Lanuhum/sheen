@@ -1,0 +1,1 @@
+/usr/bin/clang++ --no-offload-new-driver -O3 -DNDEBUG --cuda-path=/usr -Xlinker --dependency-file=CMakeFiles/mesh_test.dir/link.d CMakeFiles/mesh_test.dir/tests/mesh_test_main.cpp.o CMakeFiles/mesh_test.dir/render_kernel.cu.o -o mesh_test  /usr/lib64/libcudart.so -lcudadevrt -lcudart_static -lrt -lpthread -ldl  -L"/usr/lib64"

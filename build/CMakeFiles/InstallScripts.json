@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/arch/programming/sheen_blender_4.5_gigachat/build/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

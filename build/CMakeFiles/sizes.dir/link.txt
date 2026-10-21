@@ -1,0 +1,1 @@
+/usr/bin/clang++ --no-offload-new-driver -O3 -DNDEBUG --cuda-path=/usr -Xlinker --dependency-file=CMakeFiles/sizes.dir/link.d CMakeFiles/sizes.dir/tests/sizes_main.cpp.o -o sizes  /usr/lib64/libcudart.so -lcudadevrt -lcudart_static -lrt -lpthread -ldl  -L"/usr/lib64"

@@ -1,0 +1,16 @@
+/home/arch/programming/sheen_blender_4.5_gigachat/build/CMakeFiles/smoke.dir
+/home/arch/programming/sheen_blender_4.5_gigachat/build/CMakeFiles/hostmix.dir
+/home/arch/programming/sheen_blender_4.5_gigachat/build/CMakeFiles/sizes.dir
+/home/arch/programming/sheen_blender_4.5_gigachat/build/CMakeFiles/sphere_test.dir
+/home/arch/programming/sheen_blender_4.5_gigachat/build/CMakeFiles/scene_render.dir
+/home/arch/programming/sheen_blender_4.5_gigachat/build/CMakeFiles/mesh_test.dir
+/home/arch/programming/sheen_blender_4.5_gigachat/build/CMakeFiles/bench.dir
+/home/arch/programming/sheen_blender_4.5_gigachat/build/CMakeFiles/sheen_c_api.dir
+/home/arch/programming/sheen_blender_4.5_gigachat/build/CMakeFiles/c_api_test.dir
+/home/arch/programming/sheen_blender_4.5_gigachat/build/CMakeFiles/sheen.dir
+/home/arch/programming/sheen_blender_4.5_gigachat/build/CMakeFiles/edit_cache.dir
+/home/arch/programming/sheen_blender_4.5_gigachat/build/CMakeFiles/rebuild_cache.dir
+/home/arch/programming/sheen_blender_4.5_gigachat/build/CMakeFiles/list_install_components.dir
+/home/arch/programming/sheen_blender_4.5_gigachat/build/CMakeFiles/install.dir
+/home/arch/programming/sheen_blender_4.5_gigachat/build/CMakeFiles/install/local.dir
+/home/arch/programming/sheen_blender_4.5_gigachat/build/CMakeFiles/install/strip.dir

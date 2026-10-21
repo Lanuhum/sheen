@@ -1,0 +1,1 @@
+/usr/bin/clang++ --no-offload-new-driver -O3 -DNDEBUG --cuda-path=/usr -Xlinker --dependency-file=CMakeFiles/smoke.dir/link.d CMakeFiles/smoke.dir/src/smoke.cu.o -o smoke  /usr/lib64/libcudart.so -lcudadevrt -lcudart_static -lrt -lpthread -ldl  -L"/usr/lib64"

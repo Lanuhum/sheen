@@ -1,0 +1,14 @@
+/home/leonid/.config/blender/4.5/scripts/addons/sheen_render/libsheen_c_api.so
+/home/leonid/.config/blender/4.5/scripts/addons/sheen_render/sheen.so
+/home/leonid/.config/blender/4.5/scripts/addons/sheen_render/render_engine.py
+/home/leonid/.config/blender/4.5/scripts/addons/sheen_render/__init__.py
+/home/leonid/.config/blender/4.5/scripts/addons/sheen_render/properties.py
+/home/leonid/.config/blender/4.5/scripts/addons/sheen_render/c_api_contract.py
+/home/leonid/.config/blender/4.5/scripts/addons/sheen_render/engine.py
+/home/leonid/.config/blender/4.5/scripts/addons/sheen_render/render_panel.py
+/home/leonid/.config/blender/4.5/scripts/addons/sheen_render/operators.py
+/home/leonid/.local/bin/scene_render
+/home/leonid/.local/bin/sphere_test
+/home/leonid/.local/bin/mesh_test
+/home/leonid/.local/bin/bench
+/home/leonid/.local/lib/libsheen_c_api.so

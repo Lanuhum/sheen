@@ -1,0 +1,20 @@
+# Sheen: гранит с золотой жилой и прожилком слюды (IOR 1.6)
+# Одна карта свойств на материал: R — transmission, G — IOR-1, B — roughness.
+# Цвет — обычная albedo-текстура; жила золота и слюда совпадают по построению.
+resolution 800 600 4 /tmp/granite.png
+camera 0 1.3 5.0   0 -0.08 -1
+
+texture file=scenes/textures/granite_albedo.ppm
+texture file=scenes/textures/granite_mask.ppm
+texture file=scenes/textures/granite_normal.ppm
+
+material diffuse=0.9,0.9,0.9 spec=0.35 shin=32 amb=0.05 tex=0 mask=1 normal=2 nstr=1.2
+material diffuse=0.12,0.12,0.13 spec=0.05 shin=8 amb=0.05
+
+glass 0 1.0 1.45
+
+plane 0 1 0 0 1
+cube 0 1.0 0 1.0 0
+
+light 0.35 -0.62 -0.55   1 1 1   0.9
+point 0.8 1.9 2.2   0.9 0.95 1.0   12  0.08

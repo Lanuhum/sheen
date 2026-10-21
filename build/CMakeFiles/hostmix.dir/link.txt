@@ -1,0 +1,1 @@
+/usr/bin/clang++ --no-offload-new-driver -O3 -DNDEBUG --cuda-path=/usr -Xlinker --dependency-file=CMakeFiles/hostmix.dir/link.d CMakeFiles/hostmix.dir/src/hostmix.cu.o -o hostmix  /usr/lib64/libcudart.so -lcudadevrt -lcudart_static -lrt -lpthread -ldl  -L"/usr/lib64"

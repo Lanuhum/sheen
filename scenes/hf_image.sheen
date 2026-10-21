@@ -1,0 +1,13 @@
+# Sheen: HF из grayscale-карты высот — утёс с плато (тест hf_image)
+resolution 640 480 4 /tmp/hf_image.png
+camera 1.4 1.4 2.8   0 -0.3 -1
+
+material 0.45 0.42 0.38  0.25 16 0.18   # скала
+material 0.5 0.5 0.5    0.1 8 0.2      # пол
+
+# hf_image cx cy cz size_x size_z height file.pgm mat
+hf_image 0 0 0  2.4 2.4 1.1  /tmp/cliff64.pgm 0
+
+plane 0 1 0 0 1
+
+light -0.5 -0.7 -0.6  1 1 1 1.2

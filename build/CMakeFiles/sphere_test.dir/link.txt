@@ -1,0 +1,1 @@
+/usr/bin/clang++ --no-offload-new-driver -O3 -DNDEBUG --cuda-path=/usr -Xlinker --dependency-file=CMakeFiles/sphere_test.dir/link.d CMakeFiles/sphere_test.dir/tests/sphere_test_main.cpp.o CMakeFiles/sphere_test.dir/render_kernel.cu.o -o sphere_test  /usr/lib64/libcudart.so -lcudadevrt -lcudart_static -lrt -lpthread -ldl  -L"/usr/lib64"

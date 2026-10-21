@@ -5,6 +5,7 @@
 #include "stb_image_write.h"
 #include "render_kernel.h"
 #include "scene.h"
+#include "sampling/aa.h"
 
 int main() {
     int width = 800;
@@ -22,7 +23,8 @@ int main() {
     scene.add_material({0.0f, 1.0f, 0.0f}, 0.5f, 64.0f, 0.1f); // зелёный
     scene.add_material({0.0f, 0.0f, 1.0f}, 0.2f, 16.0f, 0.1f); // синий
     scene.add_material({0.5f, 0.5f, 0.5f}, 0.1f, 8.0f, 0.2f);  // серый (пол)
-    scene.add_material({0.8f, 0.4f, 0.1f}, 0.6f, 128.0f, 0.1f); // оранжевый (пряди)
+    scene.add_material({0.8f, 0.4f, 0.1f}, 0.6f, 128.0f, 0.1f,
+                       1.0f, 0.12f, 1.2f, 12.0f, 0.5f, 6.0f, 0.5f); // оранжевый (пряди), волосы
     
     // 1000 сфер для бенчмарка BVH
     for (int i = 0; i < 1000; i++) {
@@ -42,10 +44,10 @@ int main() {
             float t = (float)i / 8.0f;
             SweepPoint p;
             p.position = {-2.0f + t * 1.0f, 1.5f + sinf(t * 3.14159f) * 0.5f, 0.0f};
-            p.radius = 0.05f * (1.0f - t * 0.5f);  // сужается к концу
+            p.radius = 0.075f * (1.0f - t * 0.5f);  // сужается к концу
             pts.push_back(p);
         }
-        scene.add_sphere_sweep(pts, 4);
+        scene.add_sphere_sweep_smooth(pts, 4, 8);
     }
     
     // Прядь 2: вертикальная прядь справа
@@ -55,10 +57,10 @@ int main() {
             float t = (float)i / 6.0f;
             SweepPoint p;
             p.position = {2.0f, 1.0f + t * 2.0f, 0.0f};
-            p.radius = 0.08f * (1.0f - t * 0.7f);
+            p.radius = 0.12f * (1.0f - t * 0.7f);
             pts.push_back(p);
         }
-        scene.add_sphere_sweep(pts, 4);
+        scene.add_sphere_sweep_smooth(pts, 4, 8);
     }
     
     // Прядь 3: спираль в центре
@@ -69,14 +71,27 @@ int main() {
             SweepPoint p;
             float angle = t * 6.28318f * 2.0f;
             p.position = {sinf(angle) * 0.3f, 1.0f + t * 1.5f, cosf(angle) * 0.3f};
-            p.radius = 0.04f;
+            p.radius = 0.06f;
             pts.push_back(p);
         }
-        scene.add_sphere_sweep(pts, 4);
+        scene.add_sphere_sweep_smooth(pts, 4, 8);
     }
     
+    // Прядь 4: тонкая, тоньше пикселя на экране
+    {
+        std::vector<SweepPoint> pts;
+        for (int i = 0; i <= 6; i++) {
+            float t = (float)i / 6.0f;
+            SweepPoint p;
+            p.position = {-2.5f, 1.0f + t * 2.0f, 0.0f};
+            p.radius = 0.005f;
+            pts.push_back(p);
+        }
+        scene.add_sphere_sweep_smooth(pts, 4, 8);
+    }
+
     // Свет
-    scene.add_directional_light({-0.5f, -1.0f, 0.5f}, {1.0f, 1.0f, 1.0f}, 0.9f);
+    scene.add_directional_light({-0.5f, -1.0f, -0.5f}, {1.0f, 1.0f, 1.0f}, 0.9f);
     
     // Строим BVH
     scene.build_bvh();
@@ -121,15 +136,44 @@ int main() {
     dim3 grid((width + block.x - 1) / block.x, (height + block.y - 1) / block.y);
     
     cudaDeviceSynchronize();
+
+    render_kernel<<<grid, block>>>(
+        d_output, width, height, scene.camera,
+        d_bvh, d_objects, scene.objects.size(),
+        d_strand_bvh, d_strands, d_sweep_points, scene.sweep_strands.size(),
+        nullptr, nullptr, 0,
+        nullptr, nullptr, 0,
+        nullptr, nullptr, 0,
+        nullptr, nullptr, nullptr, 0,
+        nullptr, nullptr, nullptr, 0,
+        nullptr, -1,
+        d_planes, scene.planes.size(),
+        d_materials, scene.materials.size(),
+        nullptr, 0,
+        d_lights, scene.lights.size(),
+        nullptr, 0,
+        SHEEN_AA_SAMPLES, PhotonMap{}, 0.0f
+    );
+    cudaDeviceSynchronize();
+
     auto start = std::chrono::high_resolution_clock::now();
     
     render_kernel<<<grid, block>>>(
         d_output, width, height, scene.camera,
         d_bvh, d_objects, scene.objects.size(),
         d_strand_bvh, d_strands, d_sweep_points, scene.sweep_strands.size(),
+        nullptr, nullptr, 0,
+        nullptr, nullptr, 0,
+        nullptr, nullptr, 0,
+        nullptr, nullptr, nullptr, 0,
+        nullptr, nullptr, nullptr, 0,
+        nullptr, -1,
         d_planes, scene.planes.size(),
         d_materials, scene.materials.size(),
-        d_lights, scene.lights.size()
+        nullptr, 0,
+        d_lights, scene.lights.size(),
+        nullptr, 0,
+        SHEEN_AA_SAMPLES, PhotonMap{}, 0.0f
     );
     
     cudaDeviceSynchronize();

@@ -1,5 +1,11 @@
 #pragma once
+#include <cmath>
 #include "types.h"
+#include "primitives/triangle.h"
+#include "primitives/heightfield.h"
+#include "primitives/superellipsoid.h"
+#include "primitives/lathe.h"
+#include "primitives/prism.h"
 #include "intersect.h"
 #include <vector>
 #include <algorithm>
@@ -222,6 +228,353 @@ inline int build_strand_bvh_recursive(
 // ---------------------------------------------------------
 // Пересечение с AABB
 // ---------------------------------------------------------
+
+// ---------------------------------------------------------
+// Границы треугольника
+// ---------------------------------------------------------
+inline void get_triangle_bounds(const Triangle& t, float3& bmin, float3& bmax) {
+    bmin = {fminf(t.v0.x, fminf(t.v1.x, t.v2.x)),
+            fminf(t.v0.y, fminf(t.v1.y, t.v2.y)),
+            fminf(t.v0.z, fminf(t.v1.z, t.v2.z))};
+    bmax = {fmaxf(t.v0.x, fmaxf(t.v1.x, t.v2.x)),
+            fmaxf(t.v0.y, fmaxf(t.v1.y, t.v2.y)),
+            fmaxf(t.v0.z, fmaxf(t.v1.z, t.v2.z))};
+}
+
+// ---------------------------------------------------------
+// Построение BVH для треугольников (медианное деление по центроидам)
+// ---------------------------------------------------------
+inline int build_mesh_bvh_recursive(
+    std::vector<BVHNode>& nodes,
+    const std::vector<Triangle>& tris,
+    std::vector<int>& indices,
+    int start, int end
+) {
+    int node_idx = (int)nodes.size();
+    nodes.push_back(BVHNode());
+
+    float3 cmin = {1e30f, 1e30f, 1e30f};
+    float3 cmax = {-1e30f, -1e30f, -1e30f};
+
+    for (int i = start; i < end; i++) {
+        float3 bmin, bmax;
+        get_triangle_bounds(tris[indices[i]], bmin, bmax);
+        cmin = {fminf(cmin.x, bmin.x), fminf(cmin.y, bmin.y), fminf(cmin.z, bmin.z)};
+        cmax = {fmaxf(cmax.x, bmax.x), fmaxf(cmax.y, bmax.y), fmaxf(cmax.z, bmax.z)};
+    }
+
+    nodes[node_idx].bbox_min = cmin;
+    nodes[node_idx].bbox_max = cmax;
+
+    int count = end - start;
+    if (count <= 1) {
+        // Лист хранит ровно один треугольник: обход читает только left_child.
+        nodes[node_idx].left_child  = ~indices[start];
+        nodes[node_idx].right_child = ~indices[start];
+        return node_idx;
+    }
+
+    float3 extent = {cmax.x - cmin.x, cmax.y - cmin.y, cmax.z - cmin.z};
+    int axis = 0;
+    if (extent.y > extent.x && extent.y > extent.z) axis = 1;
+    if (extent.z > extent.x && extent.z > extent.y) axis = 2;
+
+    int mid = start + count / 2;
+    auto centroid = [&](int idx) {
+        float3 bmin, bmax;
+        get_triangle_bounds(tris[idx], bmin, bmax);
+        return get_centroid(bmin, bmax);
+    };
+    std::nth_element(indices.begin() + start, indices.begin() + mid, indices.begin() + end,
+        [&](int a, int b) {
+            float3 ca = centroid(a), cb = centroid(b);
+            if (axis == 0) return ca.x < cb.x;
+            if (axis == 1) return ca.y < cb.y;
+            return ca.z < cb.z;
+        });
+
+    nodes[node_idx].left_child  = build_mesh_bvh_recursive(nodes, tris, indices, start, mid);
+    nodes[node_idx].right_child = build_mesh_bvh_recursive(nodes, tris, indices, mid, end);
+    return node_idx;
+}
+
+// ---------------------------------------------------------
+// Границы HeightField-тайла
+// ---------------------------------------------------------
+inline void get_heightfield_bounds(const HeightField& hf, float3& bmin, float3& bmax) {
+    bmin = {hf.center.x - 0.5f * hf.size_x, hf.center.y,
+            hf.center.z - 0.5f * hf.size_z};
+    bmax = {hf.center.x + 0.5f * hf.size_x, hf.center.y + hf.height,
+            hf.center.z + 0.5f * hf.size_z};
+}
+
+// ---------------------------------------------------------
+// Границы Superellipsoid
+// ---------------------------------------------------------
+inline void get_superellipsoid_bounds(const Superellipsoid& se, float3& bmin, float3& bmax) {
+    superellipsoid_bounds(se, bmin, bmax);
+}
+
+// ---------------------------------------------------------
+// Границы Prism (по точкам профиля в XZ и экструзии по Y)
+// ---------------------------------------------------------
+inline void get_prism_bounds(const Prism& pr, const PrismPoint* pts, float3& bmin, float3& bmax) {
+    bmin = { 1e30f, pr.center.y + pr.y_min,  1e30f };
+    bmax = { -1e30f, pr.center.y + pr.y_max, -1e30f };
+    for (int i = 0; i < pr.point_count; i++) {
+        const PrismPoint& p = pts[pr.point_offset + i];
+        bmin.x = fminf(bmin.x, pr.center.x + p.x);
+        bmax.x = fmaxf(bmax.x, pr.center.x + p.x);
+        bmin.z = fminf(bmin.z, pr.center.z + p.z);
+        bmax.z = fmaxf(bmax.z, pr.center.z + p.z);
+    }
+    if (bmin.x > bmax.x) { bmin = bmax = {0, pr.center.y, 0}; }
+}
+
+// ---------------------------------------------------------
+// Построение BVH для Prism (медианное деление по центроидам)
+// ---------------------------------------------------------
+inline int build_prism_bvh_recursive(
+    std::vector<BVHNode>& nodes,
+    const std::vector<Prism>& prisms,
+    const PrismPoint* points,
+    std::vector<int>& indices,
+    int start, int end
+) {
+    int node_idx = (int)nodes.size();
+    nodes.push_back(BVHNode());
+
+    float3 cmin = {1e30f, 1e30f, 1e30f};
+    float3 cmax = {-1e30f, -1e30f, -1e30f};
+
+    for (int i = start; i < end; i++) {
+        float3 bmin, bmax;
+        get_prism_bounds(prisms[indices[i]], points, bmin, bmax);
+        cmin = {fminf(cmin.x, bmin.x), fminf(cmin.y, bmin.y), fminf(cmin.z, bmin.z)};
+        cmax = {fmaxf(cmax.x, bmax.x), fmaxf(cmax.y, bmax.y), fmaxf(cmax.z, bmax.z)};
+    }
+
+    nodes[node_idx].bbox_min = cmin;
+    nodes[node_idx].bbox_max = cmax;
+
+    int count = end - start;
+    if (count <= 1) {
+        nodes[node_idx].left_child  = ~indices[start];
+        nodes[node_idx].right_child = ~indices[start];
+        return node_idx;
+    }
+
+    float3 extent = {cmax.x - cmin.x, cmax.y - cmin.y, cmax.z - cmin.z};
+    int axis = 0;
+    if (extent.y > extent.x && extent.y > extent.z) axis = 1;
+    if (extent.z > extent.x && extent.z > extent.y) axis = 2;
+
+    int mid = start + count / 2;
+    auto centroid = [&](int idx) {
+        float3 bmin, bmax;
+        get_prism_bounds(prisms[idx], points, bmin, bmax);
+        return get_centroid(bmin, bmax);
+    };
+    std::nth_element(indices.begin() + start, indices.begin() + mid, indices.begin() + end,
+        [&](int a, int b) {
+            float3 ca = centroid(a), cb = centroid(b);
+            if (axis == 0) return ca.x < cb.x;
+            if (axis == 1) return ca.y < cb.y;
+            return ca.z < cb.z;
+        });
+
+    nodes[node_idx].left_child  = build_prism_bvh_recursive(nodes, prisms, points, indices, start, mid);
+    nodes[node_idx].right_child = build_prism_bvh_recursive(nodes, prisms, points, indices, mid, end);
+    return node_idx;
+}
+
+// ---------------------------------------------------------
+// Границы Lathe (по точкам профиля: y и радиус; ось Y)
+// ---------------------------------------------------------
+inline void get_lathe_bounds(const Lathe& l, const LathePoint* pts, float3& bmin, float3& bmax) {
+    bmin = {l.center.x - 1e30f, 1e30f, l.center.z - 1e30f};
+    bmax = {l.center.x + 1e30f, -1e30f, l.center.z + 1e30f};
+    for (int i = 0; i < l.point_count; i++) {
+        const LathePoint& p = pts[l.point_offset + i];
+        float r = p.radius;
+        if (r < 0.0f) continue;   // нулевой радиус = пропуск
+        bmin = {fminf(bmin.x, l.center.x - r), fminf(bmin.y, l.center.y + p.y - r),
+                fminf(bmin.z, l.center.z - r)};
+        bmax = {fmaxf(bmax.x, l.center.x + r), fmaxf(bmax.y, l.center.y + p.y + r),
+                fmaxf(bmax.z, l.center.z + r)};
+    }
+    if (bmin.x > bmax.x) { bmin = bmax = {0, 0, 0}; }  // пустой профиль
+}
+
+// ---------------------------------------------------------
+// Построение BVH для Lathe (медианное деление по центроидам)
+// ---------------------------------------------------------
+inline int build_lathe_bvh_recursive(
+    std::vector<BVHNode>& nodes,
+    const std::vector<Lathe>& lathes,
+    const LathePoint* points,
+    std::vector<int>& indices,
+    int start, int end
+) {
+    int node_idx = (int)nodes.size();
+    nodes.push_back(BVHNode());
+
+    float3 cmin = {1e30f, 1e30f, 1e30f};
+    float3 cmax = {-1e30f, -1e30f, -1e30f};
+
+    for (int i = start; i < end; i++) {
+        float3 bmin, bmax;
+        get_lathe_bounds(lathes[indices[i]], points, bmin, bmax);
+        cmin = {fminf(cmin.x, bmin.x), fminf(cmin.y, bmin.y), fminf(cmin.z, bmin.z)};
+        cmax = {fmaxf(cmax.x, bmax.x), fmaxf(cmax.y, bmax.y), fmaxf(cmax.z, bmax.z)};
+    }
+
+    nodes[node_idx].bbox_min = cmin;
+    nodes[node_idx].bbox_max = cmax;
+
+    int count = end - start;
+    if (count <= 1) {
+        nodes[node_idx].left_child  = ~indices[start];
+        nodes[node_idx].right_child = ~indices[start];
+        return node_idx;
+    }
+
+    float3 extent = {cmax.x - cmin.x, cmax.y - cmin.y, cmax.z - cmin.z};
+    int axis = 0;
+    if (extent.y > extent.x && extent.y > extent.z) axis = 1;
+    if (extent.z > extent.x && extent.z > extent.y) axis = 2;
+
+    int mid = start + count / 2;
+    auto centroid = [&](int idx) {
+        float3 bmin, bmax;
+        get_lathe_bounds(lathes[idx], points, bmin, bmax);
+        return get_centroid(bmin, bmax);
+    };
+    std::nth_element(indices.begin() + start, indices.begin() + mid, indices.begin() + end,
+        [&](int a, int b) {
+            float3 ca = centroid(a), cb = centroid(b);
+            if (axis == 0) return ca.x < cb.x;
+            if (axis == 1) return ca.y < cb.y;
+            return ca.z < cb.z;
+        });
+
+    nodes[node_idx].left_child  = build_lathe_bvh_recursive(nodes, lathes, points, indices, start, mid);
+    nodes[node_idx].right_child = build_lathe_bvh_recursive(nodes, lathes, points, indices, mid, end);
+    return node_idx;
+}
+
+// ---------------------------------------------------------
+// Построение BVH для HeightField (медианное деление по центроидам)
+// ---------------------------------------------------------
+inline int build_hf_bvh_recursive(
+    std::vector<BVHNode>& nodes,
+    const std::vector<HeightField>& hfs,
+    std::vector<int>& indices,
+    int start, int end
+) {
+    int node_idx = (int)nodes.size();
+    nodes.push_back(BVHNode());
+
+    float3 cmin = {1e30f, 1e30f, 1e30f};
+    float3 cmax = {-1e30f, -1e30f, -1e30f};
+
+    for (int i = start; i < end; i++) {
+        float3 bmin, bmax;
+        get_heightfield_bounds(hfs[indices[i]], bmin, bmax);
+        cmin = {fminf(cmin.x, bmin.x), fminf(cmin.y, bmin.y), fminf(cmin.z, bmin.z)};
+        cmax = {fmaxf(cmax.x, bmax.x), fmaxf(cmax.y, bmax.y), fmaxf(cmax.z, bmax.z)};
+    }
+
+    nodes[node_idx].bbox_min = cmin;
+    nodes[node_idx].bbox_max = cmax;
+
+    int count = end - start;
+    if (count <= 1) {
+        nodes[node_idx].left_child  = ~indices[start];
+        nodes[node_idx].right_child = ~indices[start];
+        return node_idx;
+    }
+
+    float3 extent = {cmax.x - cmin.x, cmax.y - cmin.y, cmax.z - cmin.z};
+    int axis = 0;
+    if (extent.y > extent.x && extent.y > extent.z) axis = 1;
+    if (extent.z > extent.x && extent.z > extent.y) axis = 2;
+
+    int mid = start + count / 2;
+    auto centroid = [&](int idx) {
+        float3 bmin, bmax;
+        get_heightfield_bounds(hfs[idx], bmin, bmax);
+        return get_centroid(bmin, bmax);
+    };
+    std::nth_element(indices.begin() + start, indices.begin() + mid, indices.begin() + end,
+        [&](int a, int b) {
+            float3 ca = centroid(a), cb = centroid(b);
+            if (axis == 0) return ca.x < cb.x;
+            if (axis == 1) return ca.y < cb.y;
+            return ca.z < cb.z;
+        });
+
+    nodes[node_idx].left_child  = build_hf_bvh_recursive(nodes, hfs, indices, start, mid);
+    nodes[node_idx].right_child = build_hf_bvh_recursive(nodes, hfs, indices, mid, end);
+    return node_idx;
+}
+
+// ---------------------------------------------------------
+// Построение BVH для Superellipsoid (медианное деление по центроидам)
+// ---------------------------------------------------------
+inline int build_se_bvh_recursive(
+    std::vector<BVHNode>& nodes,
+    const std::vector<Superellipsoid>& ses,
+    std::vector<int>& indices,
+    int start, int end
+) {
+    int node_idx = (int)nodes.size();
+    nodes.push_back(BVHNode());
+
+    float3 cmin = {1e30f, 1e30f, 1e30f};
+    float3 cmax = {-1e30f, -1e30f, -1e30f};
+
+    for (int i = start; i < end; i++) {
+        float3 bmin, bmax;
+        get_superellipsoid_bounds(ses[indices[i]], bmin, bmax);
+        cmin = {fminf(cmin.x, bmin.x), fminf(cmin.y, bmin.y), fminf(cmin.z, bmin.z)};
+        cmax = {fmaxf(cmax.x, bmax.x), fmaxf(cmax.y, bmax.y), fmaxf(cmax.z, bmax.z)};
+    }
+
+    nodes[node_idx].bbox_min = cmin;
+    nodes[node_idx].bbox_max = cmax;
+
+    int count = end - start;
+    if (count <= 1) {
+        nodes[node_idx].left_child  = ~indices[start];
+        nodes[node_idx].right_child = ~indices[start];
+        return node_idx;
+    }
+
+    float3 extent = {cmax.x - cmin.x, cmax.y - cmin.y, cmax.z - cmin.z};
+    int axis = 0;
+    if (extent.y > extent.x && extent.y > extent.z) axis = 1;
+    if (extent.z > extent.x && extent.z > extent.y) axis = 2;
+
+    int mid = start + count / 2;
+    auto centroid = [&](int idx) {
+        float3 bmin, bmax;
+        get_superellipsoid_bounds(ses[idx], bmin, bmax);
+        return get_centroid(bmin, bmax);
+    };
+    std::nth_element(indices.begin() + start, indices.begin() + mid, indices.begin() + end,
+        [&](int a, int b) {
+            float3 ca = centroid(a), cb = centroid(b);
+            if (axis == 0) return ca.x < cb.x;
+            if (axis == 1) return ca.y < cb.y;
+            return ca.z < cb.z;
+        });
+
+    nodes[node_idx].left_child  = build_se_bvh_recursive(nodes, ses, indices, start, mid);
+    nodes[node_idx].right_child = build_se_bvh_recursive(nodes, ses, indices, mid, end);
+    return node_idx;
+}
+
 GPU_DEVICE inline bool intersect_aabb(const Ray& ray, float3 bbox_min, float3 bbox_max) {
     float invDirX = 1.0f / ray.direction.x;
     float tminX = (bbox_min.x - ray.origin.x) * invDirX;
@@ -256,6 +609,8 @@ GPU_DEVICE inline bool intersect_bvh(
     int num_objects,
     HitRecord& rec
 ) {
+    if (num_objects == 0) return false;
+
     int stack[64];
     int stack_ptr = 0;
     stack[stack_ptr++] = 0;
@@ -339,4 +694,267 @@ GPU_DEVICE inline bool intersect_strand_bvh(
         }
     }
     return hit_anything;
+}
+
+// ---------------------------------------------------------
+// Обход BVH для треугольников
+// ---------------------------------------------------------
+GPU_DEVICE inline bool intersect_mesh_bvh(
+    const Ray& ray,
+    const BVHNode* bvh_nodes,
+    const Triangle* tris,
+    int num_tris,
+    HitRecord& rec
+) {
+    if (num_tris == 0) return false;
+
+    int stack[64];
+    int stack_ptr = 0;
+    stack[stack_ptr++] = 0;
+
+    bool hit_anything = false;
+    float closest_t = ray.t_max;
+    HitRecord temp_rec;
+
+    while (stack_ptr > 0) {
+        int node_idx = stack[--stack_ptr];
+        const BVHNode& node = bvh_nodes[node_idx];
+
+        if (intersect_aabb(ray, node.bbox_min, node.bbox_max)) {
+            if (node.left_child < 0) {
+                int tri_idx = ~node.left_child;
+                if (intersect_triangle(ray, tris[tri_idx], temp_rec)) {
+                    if (temp_rec.t < closest_t) {
+                        rec = temp_rec;
+                        rec.material_id = tris[tri_idx].material_id;
+                        rec.object_id = -(tri_idx + 1);
+                        closest_t = temp_rec.t;
+                        hit_anything = true;
+                    }
+                }
+            } else {
+                stack[stack_ptr++] = node.left_child;
+                stack[stack_ptr++] = node.right_child;
+            }
+        }
+    }
+    return hit_anything;
+}
+
+// ---------------------------------------------------------
+// Обход BVH для Prism
+// ---------------------------------------------------------
+GPU_DEVICE inline bool intersect_prism_bvh(
+    const Ray& ray,
+    const BVHNode* bvh_nodes,
+    const Prism* prisms,
+    const PrismPoint* points,
+    int num_prisms,
+    HitRecord& rec
+) {
+    if (num_prisms == 0) return false;
+
+    int stack[64];
+    int stack_ptr = 0;
+    stack[stack_ptr++] = 0;
+
+    bool hit_anything = false;
+    float closest_t = ray.t_max;
+    HitRecord temp_rec;
+
+    while (stack_ptr > 0) {
+        int node_idx = stack[--stack_ptr];
+        const BVHNode& node = bvh_nodes[node_idx];
+
+        if (intersect_aabb(ray, node.bbox_min, node.bbox_max)) {
+            if (node.left_child < 0) {
+                int p_idx = ~node.left_child;
+                if (intersect_prism(ray, prisms[p_idx], points, temp_rec)) {
+                    if (temp_rec.t < closest_t) {
+                        rec = temp_rec;
+                        rec.object_id = -(p_idx + 1);
+                        closest_t = temp_rec.t;
+                        hit_anything = true;
+                    }
+                }
+            } else {
+                stack[stack_ptr++] = node.left_child;
+                stack[stack_ptr++] = node.right_child;
+            }
+        }
+    }
+    return hit_anything;
+}
+
+// ---------------------------------------------------------
+// Обход BVH для Lathe
+// ---------------------------------------------------------
+GPU_DEVICE inline bool intersect_lathe_bvh(
+    const Ray& ray,
+    const BVHNode* bvh_nodes,
+    const Lathe* lathes,
+    const LathePoint* points,
+    int num_lathes,
+    HitRecord& rec
+) {
+    if (num_lathes == 0) return false;
+
+    int stack[64];
+    int stack_ptr = 0;
+    stack[stack_ptr++] = 0;
+
+    bool hit_anything = false;
+    float closest_t = ray.t_max;
+    HitRecord temp_rec;
+
+    while (stack_ptr > 0) {
+        int node_idx = stack[--stack_ptr];
+        const BVHNode& node = bvh_nodes[node_idx];
+
+        if (intersect_aabb(ray, node.bbox_min, node.bbox_max)) {
+            if (node.left_child < 0) {
+                int l_idx = ~node.left_child;
+                if (intersect_lathe(ray, lathes[l_idx], points, temp_rec)) {
+                    if (temp_rec.t < closest_t) {
+                        rec = temp_rec;
+                        rec.object_id = -(l_idx + 1);
+                        closest_t = temp_rec.t;
+                        hit_anything = true;
+                    }
+                }
+            } else {
+                stack[stack_ptr++] = node.left_child;
+                stack[stack_ptr++] = node.right_child;
+            }
+        }
+    }
+    return hit_anything;
+}
+
+// ---------------------------------------------------------
+// Обход BVH для HeightField
+// ---------------------------------------------------------
+GPU_DEVICE inline bool intersect_hf_bvh(
+    const Ray& ray,
+    const BVHNode* bvh_nodes,
+    const HeightField* hfs,
+    int num_hfs,
+    HitRecord& rec
+) {
+    if (num_hfs == 0) return false;
+
+    int stack[64];
+    int stack_ptr = 0;
+    stack[stack_ptr++] = 0;
+
+    bool hit_anything = false;
+    float closest_t = ray.t_max;
+    HitRecord temp_rec;
+
+    while (stack_ptr > 0) {
+        int node_idx = stack[--stack_ptr];
+        const BVHNode& node = bvh_nodes[node_idx];
+
+        if (intersect_aabb(ray, node.bbox_min, node.bbox_max)) {
+            if (node.left_child < 0) {
+                int hf_idx = ~node.left_child;
+                if (intersect_heightfield(ray, hfs[hf_idx], temp_rec)) {
+                    if (temp_rec.t < closest_t) {
+                        rec = temp_rec;
+                        rec.material_id = hfs[hf_idx].material_id;
+                        rec.object_id = -(hf_idx + 1);
+                        closest_t = temp_rec.t;
+                        hit_anything = true;
+                    }
+                }
+            } else {
+                stack[stack_ptr++] = node.left_child;
+                stack[stack_ptr++] = node.right_child;
+            }
+        }
+    }
+    return hit_anything;
+}
+
+// ---------------------------------------------------------
+// Обход BVH для Superellipsoid
+// ---------------------------------------------------------
+GPU_DEVICE inline bool intersect_se_bvh(
+    const Ray& ray,
+    const BVHNode* bvh_nodes,
+    const Superellipsoid* ses,
+    int num_ses,
+    HitRecord& rec
+) {
+    if (num_ses == 0) return false;
+
+    int stack[64];
+    int stack_ptr = 0;
+    stack[stack_ptr++] = 0;
+
+    bool hit_anything = false;
+    float closest_t = ray.t_max;
+    HitRecord temp_rec;
+
+    while (stack_ptr > 0) {
+        int node_idx = stack[--stack_ptr];
+        const BVHNode& node = bvh_nodes[node_idx];
+
+        if (intersect_aabb(ray, node.bbox_min, node.bbox_max)) {
+            if (node.left_child < 0) {
+                int se_idx = ~node.left_child;
+                if (intersect_superellipsoid(ray, ses[se_idx], temp_rec)) {
+                    if (temp_rec.t < closest_t) {
+                        rec = temp_rec;
+                        rec.material_id = ses[se_idx].material_id;
+                        rec.object_id = -(se_idx + 1);
+                        closest_t = temp_rec.t;
+                        hit_anything = true;
+                    }
+                }
+            } else {
+                stack[stack_ptr++] = node.left_child;
+                stack[stack_ptr++] = node.right_child;
+            }
+        }
+    }
+    return hit_anything;
+}
+
+// ---------------------------------------------------------
+// Обход BVH прядей для мягкой тени: копим оптическую плотность,
+// а не факт попадания.
+// ---------------------------------------------------------
+GPU_DEVICE inline float strand_bvh_tau(
+    const Ray& ray,
+    const BVHNode* bvh_nodes,
+    const SweepStrand* strands,
+    const SweepPoint* points,
+    int num_strands,
+    float sigma
+) {
+    if (num_strands == 0) return 0.0f;
+
+    int stack[64];
+    int stack_ptr = 0;
+    stack[stack_ptr++] = 0;
+
+    float tau = 0.0f;
+
+    while (stack_ptr > 0) {
+        int node_idx = stack[--stack_ptr];
+        const BVHNode& node = bvh_nodes[node_idx];
+
+        if (intersect_aabb(ray, node.bbox_min, node.bbox_max)) {
+            if (node.left_child < 0) {
+                int strand_idx = ~node.left_child;
+                tau += strand_tau(ray, strands[strand_idx], points, sigma);
+                if (tau > 6.0f) return tau;
+            } else {
+                stack[stack_ptr++] = node.left_child;
+                stack[stack_ptr++] = node.right_child;
+            }
+        }
+    }
+    return tau;
 }

@@ -6,3 +6,5 @@ tools/bench
 *.cubin
 *.fatbin
 tmpxft_*
+build*/
+/tmp/
